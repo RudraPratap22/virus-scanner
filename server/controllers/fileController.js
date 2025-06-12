@@ -1,6 +1,7 @@
 import pool from '../config/db.js';
 import { exec } from 'child_process';
 import path from 'path';
+import fs from 'fs';
 
 export const uploadFile = async (req, res) => {
   try {
@@ -45,6 +46,14 @@ export const uploadFile = async (req, res) => {
           `INSERT INTO scans (file_id, status, virus_name, scan_log, scan_version, scanned_at) VALUES ($1, $2, $3, $4, $5, NOW())`,
           [file_id, status, virus_name, scan_log, scan_version]
         );
+
+        // Delete file from uploads folder after scan
+        try {
+          fs.unlinkSync(filePath);
+          console.log(`File deleted from uploads: ${filename}`);
+        } catch (deleteErr) {
+          console.error(`Error deleting file: ${deleteErr.message}`);
+        }
      
         res.json({
           ...newFile.rows[0],
