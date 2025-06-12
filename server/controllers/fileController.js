@@ -8,12 +8,12 @@ export const uploadFile = async (req, res) => {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
     }
-    const { filename, size, path: filePath } = req.file;
+    const { filename, size, path: filePath, mimetype } = req.file;
 
     
     const newFile = await pool.query(
-      "INSERT INTO files (filename, aws3_key, file_size) VALUES ($1, $2, $3) RETURNING *",
-      [filename, 'local', size]
+      "INSERT INTO files (filename, aws3_key, file_size, user_id, mime_type) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+      [filename, 'local', size, req.user ? req.user.id : null, mimetype]
     );
     const file_id = newFile.rows[0].id;
 
@@ -47,7 +47,7 @@ export const uploadFile = async (req, res) => {
           [file_id, status, virus_name, scan_log, scan_version]
         );
 
-        // Delete file from uploads folder after scan
+        
         try {
           fs.unlinkSync(filePath);
           console.log(`File deleted from uploads: ${filename}`);
@@ -69,8 +69,56 @@ export const uploadFile = async (req, res) => {
 
 export const getAllFiles = async (req, res) => {
   try {
-    const allFiles = await pool.query("SELECT * FROM files");
-    res.json(allFiles.rows);
+    const { userId, fileId, filename, mimeType, infected, limit = 10, page = 1 } = req.query;
+    
+    let query = `SELECT f.*, s.status AS scan_status, s.virus_name FROM files f LEFT JOIN scans s ON f.id = s.file_id`;
+    let countQuery = `SELECT COUNT(*) FROM files f LEFT JOIN scans s ON f.id = s.file_id`;
+    const conditions = [];
+    const queryParams = [];
+    let paramIndex = 1;
+
+    
+    if (userId) {
+      
+      conditions.push(`f.user_id = $${paramIndex++}`);
+      queryParams.push(userId);
+    }
+    if (fileId) {
+      conditions.push(`f.id = $${paramIndex++}`);
+      queryParams.push(fileId);
+    }
+    if (filename) {
+      conditions.push(`f.filename ILIKE $${paramIndex++}`);
+      queryParams.push(`%${filename}%`);
+    }
+    if (mimeType) {
+      // Note: 'mime_type' column must exist in the 'files' table for this filter to work
+      conditions.push(`f.mime_type = $${paramIndex++}`);
+      queryParams.push(mimeType);
+    }
+    if (infected !== undefined) {
+      const scanStatus = (infected === 'true' || infected === '1') ? 'infected' : 'clean';
+      conditions.push(`s.status = $${paramIndex++}`);
+      queryParams.push(scanStatus);
+    }
+
+    if (conditions.length > 0) {
+      query += ` WHERE ${conditions.join(' AND ')}`;
+      countQuery += ` WHERE ${conditions.join(' AND ')}`;
+    }
+
+    // Pagination
+    const offset = (page - 1) * limit;
+    query += ` ORDER BY f.uploaded_at DESC LIMIT $${paramIndex++} OFFSET $${paramIndex++}`; // Assuming 'uploaded_at' for ordering
+    queryParams.push(limit, offset);
+
+    const allFiles = await pool.query(query, queryParams);
+    const totalCount = await pool.query(countQuery, queryParams.slice(0, queryParams.length - 2)); // Remove limit/offset from count query params
+
+    res.json({
+      files: allFiles.rows,
+      total: parseInt(totalCount.rows[0].count)
+    });
   } catch (err) {
     console.error(err.message);
     res.status(500).send('Server Error');
