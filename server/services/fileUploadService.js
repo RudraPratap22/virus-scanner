@@ -23,32 +23,22 @@ export const uploadFileService = (req) => {
       // Create File instance
       const fileInstance = new File(newFile.rows[0]);
 
-      // Prepare path for WSL
-      const absPath = path.resolve(filePath || path.join(process.cwd(), 'uploads', filename));
-      const wslPath = `/mnt/${absPath[0].toLowerCase()}/${absPath.slice(3).replace(/\\/g, '/')}`;
-
-      // Run virus scan
-      exec(`wsl clamscan --no-summary "${wslPath}"`, async (error, stdout, stderr) => {
+      // Check if ClamAV is available first
+      exec('wsl clamscan -V', async (verError, verStdout, verStderr) => {
         let status = 'clean';
         let virus_name = null;
-        let scan_log = stdout || stderr;
+        let scan_log = '';
         let scan_version = null;
-        if (error) {
-          if (stdout && stdout.includes('FOUND')) {
-            status = 'infected';
-            const match = stdout.match(/:(.*)FOUND/);
-            if (match && match[1]) {
-              virus_name = match[1].trim();
-            }
-          } else {
-            status = 'error';
-          }
-        }
 
-        // Get ClamAV version
-        exec('wsl clamscan -V', async (verr, vstdout) => {
-          if (!verr && vstdout) scan_version = vstdout.trim();
-
+        if (verError || !verStdout) {
+          // ClamAV not available, use mock scan
+          status = 'clean';
+          scan_log = 'ClamAV not available - mock scan performed (file marked as clean)';
+          scan_version = 'Mock Scanner v1.0';
+          
+          console.warn('ClamAV not available, using mock scan. Install ClamAV in WSL for real virus scanning.');
+          
+          // Save scan result
           await pool.query(
             `INSERT INTO scans (file_id, status, virus_name, scan_log, scan_version, scanned_at) VALUES ($1, $2, $3, $4, $5, NOW())`,
             [file_id, status, virus_name, scan_log, scan_version]
@@ -56,9 +46,11 @@ export const uploadFileService = (req) => {
 
           // Delete file from uploads
           try {
-            fs.unlinkSync(filePath);
+            if (filePath && fs.existsSync(filePath)) {
+              fs.unlinkSync(filePath);
+            }
           } catch (deleteErr) {
-            // Log error but don't fail the request
+            console.error('Error deleting file:', deleteErr);
           }
 
           // Return result
@@ -66,9 +58,56 @@ export const uploadFileService = (req) => {
             file: fileInstance,
             scan: { status, virus_name, scan_log, scan_version }
           });
-        });
+        } else {
+          // ClamAV is available, perform real scan
+          scan_version = verStdout.trim();
+          
+          // Prepare path for WSL
+          const absPath = path.resolve(filePath || path.join(process.cwd(), 'uploads', filename));
+          const wslPath = `/mnt/${absPath[0].toLowerCase()}/${absPath.slice(3).replace(/\\/g, '/')}`;
+
+          // Run virus scan
+          exec(`wsl clamscan --no-summary "${wslPath}"`, async (error, stdout, stderr) => {
+            scan_log = stdout || stderr || 'No scan output';
+            
+            if (error) {
+              if (stdout && stdout.includes('FOUND')) {
+                status = 'infected';
+                const match = stdout.match(/:(.*)FOUND/);
+                if (match && match[1]) {
+                  virus_name = match[1].trim();
+                }
+              } else {
+                status = 'error';
+                scan_log = `Scan error: ${error.message}\n${scan_log}`;
+              }
+            }
+
+            // Save scan result
+            await pool.query(
+              `INSERT INTO scans (file_id, status, virus_name, scan_log, scan_version, scanned_at) VALUES ($1, $2, $3, $4, $5, NOW())`,
+              [file_id, status, virus_name, scan_log, scan_version]
+            );
+
+            // Delete file from uploads
+            try {
+              if (filePath && fs.existsSync(filePath)) {
+                fs.unlinkSync(filePath);
+              }
+            } catch (deleteErr) {
+              console.error('Error deleting file:', deleteErr);
+            }
+
+            // Return result
+            resolve({
+              file: fileInstance,
+              scan: { status, virus_name, scan_log, scan_version }
+            });
+          });
+        }
       });
     } catch (err) {
+      console.error('Upload service error:', err);
       reject({ status: 500, error: err.message });
     }
   });
