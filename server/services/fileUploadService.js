@@ -13,10 +13,11 @@ export const uploadFileService = (req) => {
       }
       const { filename, size, path: filePath, mimetype } = req.file;
 
-      // Insert file record
+      // Insert file record - use default user_id of 1 if no user is authenticated
+      const userId = req.user ? req.user.id : 1;
       const newFile = await pool.query(
         "INSERT INTO files (filename, aws3_key, file_size, user_id, mime_type) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-        [filename, 'local', size, req.user ? req.user.id : null, mimetype]
+        [filename, 'local', size, userId, mimetype]
       );
       const file_id = newFile.rows[0].id;
 
