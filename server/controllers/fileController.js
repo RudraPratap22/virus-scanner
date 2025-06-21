@@ -1,5 +1,5 @@
 import { uploadFileService } from '../services/fileUploadService.js';
-import { getAllFilesService } from '../services/fileQueryService.js';
+import { getAllFilesService, getFileById, deleteFileById } from '../services/fileQueryService.js';
 
 export const uploadFile = async (req, res) => {
   try {
@@ -24,3 +24,23 @@ export const getAllFiles = async (req, res) => {
     res.status(500).json({ error: 'Server Error: ' + (err.message || 'Unknown error') });
   }
 };
+
+export const downloadFile = async (req, res) => {
+    try {
+        const { fileId } = req.params;
+        const { file, filePath } = await getFileById(fileId);
+        res.download(filePath, file.filename);
+    } catch (error) {
+        res.status(404).json({ error: error.message });
+    }
+}
+
+export const deleteFile = async (req, res) => {
+    try {
+        const { fileId } = req.params;
+        await deleteFileById(fileId);
+        res.status(200).json({ message: 'File deleted successfully' });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+}

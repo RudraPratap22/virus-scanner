@@ -4,6 +4,7 @@ import { exec } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import { File } from '../entities/File.js';
+import { v4 as uuidv4 } from 'uuid';
 
 export const uploadFileService = (req) => {
   return new Promise(async (resolve, reject) => {
@@ -14,7 +15,7 @@ export const uploadFileService = (req) => {
       const { filename, size, path: filePath, mimetype } = req.file;
 
       // Insert file record - use default user_id of 1 if no user is authenticated
-      const userId = req.user ? req.user.id : 1;
+      const userId = req.user ? req.user.id : uuidv4();
       const newFile = await pool.query(
         "INSERT INTO files (filename, aws3_key, file_size, user_id, mime_type) VALUES ($1, $2, $3, $4, $5) RETURNING *",
         [filename, 'local', size, userId, mimetype]
@@ -48,16 +49,17 @@ export const uploadFileService = (req) => {
           // Delete file from uploads
           try {
             if (filePath && fs.existsSync(filePath)) {
-              fs.unlinkSync(filePath);
+              await fs.promises.unlink(filePath);
+              console.log(`[File Cleanup] Deleted mock-scanned file: ${filePath}`);
             }
           } catch (deleteErr) {
-            console.error('Error deleting file:', deleteErr);
+            console.error('[File Cleanup] Error deleting file after mock scan:', deleteErr);
           }
 
-          // Return result
+          const scanResult = { status, virus_name, scan_log, scan_version };
           resolve({
-            file: fileInstance,
-            scan: { status, virus_name, scan_log, scan_version }
+              ...fileInstance,
+              ...scanResult,
           });
         } else {
           // ClamAV is available, perform real scan
@@ -93,16 +95,17 @@ export const uploadFileService = (req) => {
             // Delete file from uploads
             try {
               if (filePath && fs.existsSync(filePath)) {
-                fs.unlinkSync(filePath);
+                await fs.promises.unlink(filePath);
+                console.log(`[File Cleanup] Deleted clam-scanned file: ${filePath}`);
               }
             } catch (deleteErr) {
-              console.error('Error deleting file:', deleteErr);
+              console.error('[File Cleanup] Error deleting file after clamscan:', deleteErr);
             }
 
-            // Return result
+            const scanResult = { status, virus_name, scan_log, scan_version };
             resolve({
-              file: fileInstance,
-              scan: { status, virus_name, scan_log, scan_version }
+                ...fileInstance,
+                ...scanResult,
             });
           });
         }

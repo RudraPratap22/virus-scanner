@@ -1,13 +1,41 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Upload, File, Shield, AlertTriangle, CheckCircle, X, Loader } from 'lucide-react'
+import { Upload, File, Shield, AlertTriangle, CheckCircle, X, Loader, Info } from 'lucide-react'
 import axios from 'axios'
+
+const ScanProgressBar = ({ status }) => {
+  if (status !== 'uploading') return null;
+
+  return (
+    <div className="w-full bg-gray-700 rounded-full h-1.5 mt-2">
+      <motion.div
+        className="bg-blue-500 h-1.5 rounded-full"
+        initial={{ width: '0%' }}
+        animate={{ width: '100%' }}
+        transition={{ duration: 5, ease: 'linear' }}
+      />
+    </div>
+  );
+};
 
 const Antivirus = () => {
   const [files, setFiles] = useState([])
   const [dragActive, setDragActive] = useState(false)
-  const [scanning, setScanning] = useState(false)
   const fileInputRef = useRef(null)
+  const [stats, setStats] = useState({ clean: 0, infected: 0, total: 0 });
+
+  const fetchStats = async () => {
+    try {
+      const response = await axios.get('/api/stats');
+      setStats(response.data);
+    } catch (error) {
+      console.error('Failed to fetch stats:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchStats();
+  }, []);
 
   const handleDrag = (e) => {
     e.preventDefault()
@@ -46,11 +74,12 @@ const Antivirus = () => {
       scanResult: null
     }))
     
-    setFiles(prev => [...prev, ...newFiles])
+    setFiles(newFiles);
     
     // Upload and scan each file
     for (const fileObj of newFiles) {
-      await uploadAndScanFile(fileObj)
+      await uploadAndScanFile(fileObj);
+      await fetchStats();
     }
   }
 
@@ -69,13 +98,14 @@ const Antivirus = () => {
         },
       })
 
-      const { file, scan } = response.data
+      const scanResult = response.data
       
       setFiles(prev => prev.map(f => 
         f.id === fileObj.id ? { 
           ...f, 
-          status: scan.status === 'infected' ? 'infected' : 'clean',
-          scanResult: scan
+          id: scanResult.id, // Use the permanent ID from the server
+          status: scanResult.status === 'infected' ? 'infected' : 'clean',
+          scanResult: scanResult
         } : f
       ))
     } catch (error) {
@@ -87,7 +117,7 @@ const Antivirus = () => {
   }
 
   const removeFile = (id) => {
-    setFiles(prev => prev.filter(f => f.id !== id))
+    setFiles(prev => prev.filter(f => f.id !== id));
   }
 
   const getStatusIcon = (status) => {
@@ -118,7 +148,22 @@ const Antivirus = () => {
       case 'error':
         return 'border-red-500 bg-red-500/10'
       default:
-        return 'border-gray-600 bg-gray-600/10'
+        return 'border-gray-600 bg-gray-700'
+    }
+  }
+
+  const getStatusTextColor = (status) => {
+    switch (status) {
+      case 'clean':
+        return 'text-green-400'
+      case 'infected':
+        return 'text-red-400'
+      case 'uploading':
+        return 'text-blue-400'
+      case 'error':
+        return 'text-red-400'
+      default:
+        return 'text-gray-400'
     }
   }
 
@@ -197,46 +242,61 @@ const Antivirus = () => {
               {files.map((file) => (
                 <motion.div
                   key={file.id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 20 }}
-                  className={`p-4 rounded-lg border ${getStatusColor(file.status)} flex items-center justify-between`}
+                  layout
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 20 }}
+                  className={`p-4 rounded-lg border ${getStatusColor(file.status)} flex flex-col`}
                 >
-                  <div className="flex items-center space-x-3">
-                    {getStatusIcon(file.status)}
-                    <div>
-                      <p className="text-white font-medium">{file.name}</p>
-                      <p className="text-gray-400 text-sm">
-                        {(file.size / 1024 / 1024).toFixed(2)} MB
-                      </p>
-                      {file.scanResult && file.scanResult.virus_name && (
-                        <p className="text-red-400 text-sm font-medium">
-                          Threat: {file.scanResult.virus_name}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-4">
+                      {getStatusIcon(file.status)}
+                      <div>
+                        <p className="text-white font-semibold">{file.name}</p>
+                        <p className="text-gray-400 text-sm">
+                          {(file.size / 1024 / 1024).toFixed(2)} MB
                         </p>
-                      )}
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      <span className={`font-bold text-sm ${getStatusTextColor(file.status)}`}>
+                        {file.status.toUpperCase()}
+                      </span>
+                      <motion.button
+                        whileHover={{ scale: 1.1 }}
+                        whileTap={{ scale: 0.9 }}
+                        onClick={() => removeFile(file.id)}
+                        className="text-gray-500 hover:text-red-400 transition-colors"
+                      >
+                        <X className="w-5 h-5" />
+                      </motion.button>
                     </div>
                   </div>
                   
-                  <div className="flex items-center space-x-3">
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                      file.status === 'clean' ? 'bg-green-500/20 text-green-400' :
-                      file.status === 'infected' ? 'bg-red-500/20 text-red-400' :
-                      file.status === 'uploading' ? 'bg-blue-500/20 text-blue-400' :
-                      file.status === 'error' ? 'bg-red-500/20 text-red-400' :
-                      'bg-gray-500/20 text-gray-400'
-                    }`}>
-                      {file.status.toUpperCase()}
-                    </span>
-                    
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => removeFile(file.id)}
-                      className="text-gray-400 hover:text-red-400 transition-colors"
+                  {file.status === 'uploading' && <ScanProgressBar status={file.status} />}
+
+                  {file.scanResult && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      className="mt-3 pt-3 border-t border-gray-700 text-xs text-gray-400 space-y-1"
                     >
-                      <X className="w-4 h-4" />
-                    </motion.button>
-                  </div>
+                      {file.scanResult.virus_name && (
+                        <div className="flex items-center space-x-2 text-red-400">
+                          <AlertTriangle className="w-4 h-4" />
+                          <p><strong>Threat Found:</strong> {file.scanResult.virus_name}</p>
+                        </div>
+                      )}
+                      <div className="flex items-center space-x-2">
+                        <Info className="w-4 h-4" />
+                        <p><strong>Scanner:</strong> {file.scanResult.scan_version}</p>
+                      </div>
+                       <div className="flex items-center space-x-2">
+                        <Info className="w-4 h-4" />
+                        <p><strong>Scan Log:</strong> {file.scanResult.scan_log.substring(0, 70)}...</p>
+                      </div>
+                    </motion.div>
+                  )}
                 </motion.div>
               ))}
             </div>
@@ -256,7 +316,7 @@ const Antivirus = () => {
             <CheckCircle className="w-6 h-6 text-green-500" />
           </div>
           <h3 className="text-2xl font-bold text-white">
-            {files.filter(f => f.status === 'clean').length}
+            {stats.clean}
           </h3>
           <p className="text-gray-400">Clean Files</p>
         </motion.div>
@@ -271,7 +331,7 @@ const Antivirus = () => {
             <AlertTriangle className="w-6 h-6 text-red-500" />
           </div>
           <h3 className="text-2xl font-bold text-white">
-            {files.filter(f => f.status === 'infected').length}
+            {stats.infected}
           </h3>
           <p className="text-gray-400">Threats Found</p>
         </motion.div>
@@ -285,7 +345,7 @@ const Antivirus = () => {
           <div className="w-12 h-12 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
             <File className="w-6 h-6 text-blue-500" />
           </div>
-          <h3 className="text-2xl font-bold text-white">{files.length}</h3>
+          <h3 className="text-2xl font-bold text-white">{stats.total}</h3>
           <p className="text-gray-400">Total Scanned</p>
         </motion.div>
       </div>

@@ -1,5 +1,16 @@
+import { getScanStatistics } from '../services/fileQueryService.js';
 import pool from '../config/db.js';
 import { exec } from 'child_process';
+
+export const getScanStats = async (req, res) => {
+  try {
+    const stats = await getScanStatistics();
+    res.json(stats);
+  } catch (err) {
+    console.error('Get scan stats controller error:', err);
+    res.status(500).json({ error: 'Server Error: ' + (err.message || 'Unknown error') });
+  }
+};
 
 export const scanFile = (req, res) => {
   const { file_path, file_id } = req.body;

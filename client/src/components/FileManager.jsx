@@ -24,6 +24,32 @@ const FileManager = () => {
     }
   }
 
+  const handleDownload = async (fileId, filename) => {
+    try {
+        const response = await axios.get(`/api/download/${fileId}`, {
+            responseType: 'blob',
+        });
+        const url = window.URL.createObjectURL(new Blob([response.data]));
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', filename);
+        document.body.appendChild(link);
+        link.click();
+        link.parentNode.removeChild(link);
+    } catch (error) {
+        console.error('Failed to download file:', error);
+    }
+  };
+
+  const handleDelete = async (fileId) => {
+      try {
+          await axios.delete(`/api/delete/${fileId}`);
+          fetchFiles(); // Refresh the file list
+      } catch (error) {
+          console.error('Failed to delete file:', error);
+      }
+  };
+
   const filteredFiles = files.filter(file => {
     const matchesSearch = file.filename.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesFilter = filterStatus === 'all' || 
@@ -188,6 +214,7 @@ const FileManager = () => {
                         whileTap={{ scale: 0.9 }}
                         className="p-2 text-gray-400 hover:text-blue-400 transition-colors"
                         title="Download"
+                        onClick={() => handleDownload(file.id, file.filename)}
                       >
                         <Download className="w-4 h-4" />
                       </motion.button>
@@ -196,6 +223,7 @@ const FileManager = () => {
                         whileTap={{ scale: 0.9 }}
                         className="p-2 text-gray-400 hover:text-red-400 transition-colors"
                         title="Delete"
+                        onClick={() => handleDelete(file.id)}
                       >
                         <Trash2 className="w-4 h-4" />
                       </motion.button>
