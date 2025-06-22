@@ -21,7 +21,7 @@ const CircularProgress = ({ progress, size = 120, strokeWidth = 8, color = 'prim
   }
 
   return (
-    <div className="relative">
+    <div className="relative inline-block">
       <svg
         className="progress-ring"
         width={size}
@@ -59,7 +59,7 @@ const CircularProgress = ({ progress, size = 120, strokeWidth = 8, color = 'prim
       {/* Progress text */}
       <div className="absolute inset-0 flex items-center justify-center">
         <motion.span
-          className="text-2xl font-bold text-white"
+          className="text-3xl font-bold text-white"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.5 }}

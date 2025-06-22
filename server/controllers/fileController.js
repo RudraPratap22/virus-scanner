@@ -1,5 +1,5 @@
 import { uploadFileService } from '../services/fileUploadService.js';
-import { getAllFilesService, getFileById, deleteFileById } from '../services/fileQueryService.js';
+import { getAllFilesService, getFileById, deleteFileById, getScanStatistics, getInfectedFiles } from '../services/fileQueryService.js';
 
 export const uploadFile = async (req, res) => {
   try {
@@ -44,3 +44,28 @@ export const deleteFile = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 }
+
+export const deleteAllInfectedFiles = async (req, res) => {
+    try {
+        const infectedFiles = await getInfectedFiles();
+        for (const file of infectedFiles) {
+            console.log(`[DeleteInfected] Deleting file with id: ${file.id}`);
+            await deleteFileById(file.id);
+        }
+        res.status(200).json({ message: 'All infected files deleted successfully' });
+    } catch (error) {
+        console.error('[DeleteInfected] Error:', error);
+        res.status(500).json({ error: error.message });
+    }
+};
+
+export const exportScanReport = async (req, res) => {
+    try {
+        res.set('Cache-Control', 'no-store');
+        // Get all files and their scan info
+        const result = await getAllFilesService({ limit: 10000, page: 1 }); // adjust limit as needed
+        res.json({ files: result.files });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};

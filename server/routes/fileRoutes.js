@@ -1,5 +1,5 @@
 import express from 'express';
-import { uploadFile, getAllFiles, downloadFile, deleteFile } from '../controllers/fileController.js';
+import { uploadFile, getAllFiles, downloadFile, deleteFile, deleteAllInfectedFiles, exportScanReport } from '../controllers/fileController.js';
 import upload from '../config/multer.js'; 
 
 const router = express.Router();
@@ -10,5 +10,7 @@ router.get('/files', getAllFiles);
 
 router.get('/download/:fileId', downloadFile);
 router.delete('/delete/:fileId', deleteFile);
+router.delete('/delete-infected', deleteAllInfectedFiles);
+router.get('/export-report', exportScanReport);
 
 export default router;

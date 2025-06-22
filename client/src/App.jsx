@@ -2,8 +2,9 @@ import React, { useState } from 'react'
 import { motion } from 'framer-motion'
 import Sidebar from './components/Sidebar'
 import Dashboard from './components/Dashboard'
-import Antivirus from './components/Antivirus'
+import Scan from './components/Scan'
 import FileManager from './components/FileManager'
+import Reports from './components/Reports'
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard')
@@ -12,10 +13,12 @@ function App() {
     switch (activeTab) {
       case 'dashboard':
         return <Dashboard />
-      case 'antivirus':
-        return <Antivirus />
+      case 'scan':
+        return <Scan />
       case 'files':
         return <FileManager />
+      case 'reports':
+        return <Reports />
       default:
         return <Dashboard />
     }

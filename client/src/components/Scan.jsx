@@ -18,7 +18,7 @@ const ScanProgressBar = ({ status }) => {
   );
 };
 
-const Antivirus = () => {
+const Scan = () => {
   const [files, setFiles] = useState([])
   const [dragActive, setDragActive] = useState(false)
   const fileInputRef = useRef(null)
@@ -353,4 +353,4 @@ const Antivirus = () => {
   )
 }
 
-export default Antivirus
+export default Scan

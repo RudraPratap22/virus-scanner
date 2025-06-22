@@ -1,84 +1,42 @@
-import React, { useState, useEffect, useCallback } from 'react'
-import { motion } from 'framer-motion'
-import { File, Search, Filter, Download, Trash2, AlertTriangle, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react'
-import axios from 'axios'
+import React, { useState, useEffect, useCallback } from 'react';
+import { FileText, Search, Filter, ChevronLeft, ChevronRight, File, AlertTriangle, CheckCircle, Download, Trash2 } from 'lucide-react';
+import axios from 'axios';
+import { motion } from 'framer-motion';
 
 const Pagination = ({ currentPage, totalPages, onPageChange }) => {
     const pageNumbers = [];
     const maxPagesToShow = 5;
-
     let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
     let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
-
     if (endPage - startPage + 1 < maxPagesToShow) {
         startPage = Math.max(1, endPage - maxPagesToShow + 1);
     }
-
     for (let i = startPage; i <= endPage; i++) {
         pageNumbers.push(i);
     }
-
     return (
         <div className="flex items-center justify-center space-x-2 mt-6">
-            <button
-                onClick={() => onPageChange(currentPage - 1)}
-                disabled={currentPage === 1}
-                className="p-2 rounded-md bg-dark-600 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-                <ChevronLeft className="w-5 h-5" />
-            </button>
+            <button onClick={() => onPageChange(currentPage - 1)} disabled={currentPage === 1} className="p-2 rounded-md bg-dark-600 disabled:opacity-50 disabled:cursor-not-allowed"><ChevronLeft className="w-5 h-5" /></button>
             {pageNumbers.map(number => (
-                <button
-                    key={number}
-                    onClick={() => onPageChange(number)}
-                    className={`px-4 py-2 rounded-md ${currentPage === number ? 'bg-primary-500 text-white' : 'bg-dark-600'}`}
-                >
-                    {number}
-                </button>
+                <button key={number} onClick={() => onPageChange(number)} className={`px-4 py-2 rounded-md ${currentPage === number ? 'bg-primary-500 text-white' : 'bg-dark-600'}`}>{number}</button>
             ))}
-            <button
-                onClick={() => onPageChange(currentPage + 1)}
-                disabled={currentPage === totalPages}
-                className="p-2 rounded-md bg-dark-600 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-                <ChevronRight className="w-5 h-5" />
-            </button>
+            <button onClick={() => onPageChange(currentPage + 1)} disabled={currentPage === totalPages} className="p-2 rounded-md bg-dark-600 disabled:opacity-50 disabled:cursor-not-allowed"><ChevronRight className="w-5 h-5" /></button>
         </div>
     );
 };
 
-const FileManager = () => {
-    const [files, setFiles] = useState([])
-    const [loading, setLoading] = useState(true)
-    const [searchTerm, setSearchTerm] = useState('')
-    const [filterStatus, setFilterStatus] = useState('all')
-    const [stats, setStats] = useState({ total: 0, clean: 0, infected: 0, unscanned: 0 });
+const Reports = () => {
+    const [files, setFiles] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [filterStatus, setFilterStatus] = useState('all');
+    const [filterMime, setFilterMime] = useState('');
+    const [filterDate, setFilterDate] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const recordsPerPage = 10;
-    const [filterMime, setFilterMime] = useState('');
-    const [filterDate, setFilterDate] = useState('');
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState(searchTerm);
 
-    const fetchStats = useCallback(async () => {
-        try {
-            const statsResponse = await axios.get('/api/stats');
-            const totalFilesResponse = await axios.get('/api/files?limit=1');
-            const totalFiles = totalFilesResponse.data.total || 0;
-            const scanned = statsResponse.data.total || 0;
-
-            setStats({
-                total: totalFiles,
-                clean: statsResponse.data.clean || 0,
-                infected: statsResponse.data.infected || 0,
-                unscanned: totalFiles - scanned,
-            });
-        } catch (error) {
-            console.error('Failed to fetch stats:', error);
-        }
-    }, []);
-
-    // Debounce searchTerm
     useEffect(() => {
         const handler = setTimeout(() => {
             setDebouncedSearchTerm(searchTerm);
@@ -113,15 +71,46 @@ const FileManager = () => {
         fetchFiles(currentPage);
     }, [fetchFiles, currentPage]);
 
-    // When search/filter changes, reset to page 1
     useEffect(() => {
         setCurrentPage(1);
     }, [debouncedSearchTerm, filterStatus, filterMime, filterDate]);
 
-    useEffect(() => {
-        fetchStats();
-    }, []);
-
+    const getStatusIcon = (status) => {
+        switch (status) {
+            case 'clean':
+                return <CheckCircle className="w-4 h-4 text-green-500" />;
+            case 'infected':
+                return <AlertTriangle className="w-4 h-4 text-red-500" />;
+            default:
+                return <File className="w-4 h-4 text-gray-400" />;
+        }
+    };
+    const getStatusBadge = (status) => {
+        switch (status) {
+            case 'clean':
+                return 'bg-green-500/20 text-green-400';
+            case 'infected':
+                return 'bg-red-500/20 text-red-400';
+            default:
+                return 'bg-gray-500/20 text-gray-400';
+        }
+    };
+    const formatFileSize = (bytes) => {
+        if (!bytes || bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    };
+    const formatDate = (dateString) => {
+        return new Date(dateString).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+        });
+    };
     const handleDownload = async (fileId, filename) => {
         try {
             const response = await axios.get(`/api/download/${fileId}`, {
@@ -138,102 +127,30 @@ const FileManager = () => {
             console.error('Failed to download file:', error);
         }
     };
-
     const handleDelete = async (fileId) => {
         try {
             await axios.delete(`/api/delete/${fileId}`);
             fetchFiles(currentPage);
-            fetchStats();
         } catch (error) {
             console.error('Failed to delete file:', error);
         }
     };
-
-    const handleDeleteInfected = async () => {
-        const infectedFiles = files.filter(f => f.scan_status === 'infected');
-        for (const file of infectedFiles) {
-            await handleDelete(file.id);
-        }
-        // After all deletions, refresh
-        fetchFiles(currentPage);
-        fetchStats();
-    };
-
-    const getStatusIcon = (status) => {
-        switch (status) {
-            case 'clean':
-                return <CheckCircle className="w-4 h-4 text-green-500" />;
-            case 'infected':
-                return <AlertTriangle className="w-4 h-4 text-red-500" />;
-            default:
-                return <File className="w-4 h-4 text-gray-400" />;
-        }
-    };
-
-    const getStatusBadge = (status) => {
-        switch (status) {
-            case 'clean':
-                return 'bg-green-500/20 text-green-400';
-            case 'infected':
-                return 'bg-red-500/20 text-red-400';
-            default:
-                return 'bg-gray-500/20 text-gray-400';
-        }
-    };
-
-    const formatFileSize = (bytes) => {
-        if (bytes === 0) return '0 Bytes';
-        const k = 1024;
-        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-    };
-
-    const formatDate = (dateString) => {
-        return new Date(dateString).toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit',
-        });
-    };
-
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center h-64">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
-            </div>
-        );
-    }
-
     return (
         <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                    <File className="w-8 h-8 text-primary-500" />
-                    <div>
-                        <h1 className="text-2xl font-bold text-white">File Manager</h1>
-                        <p className="text-gray-400">Manage and view scanned files</p>
-                    </div>
+            <div className="flex items-center space-x-3">
+                <FileText className="w-8 h-8 text-primary-500" />
+                <div>
+                    <h1 className="text-2xl font-bold text-white">Scan History</h1>
+                    <p className="text-gray-400">All scanned files with filters and pagination</p>
                 </div>
-                <button
-                    className="btn-primary"
-                    onClick={handleDeleteInfected}
-                    disabled={files.filter(f => f.scan_status === 'infected').length === 0}
-                >
-                    Delete Infected Files
-                </button>
             </div>
-
-            {/* Search and Filter */}
+            {/* Filters */}
             <div className="card flex flex-col md:flex-row gap-4">
                 <div className="flex-1 relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                     <input
                         type="text"
-                        placeholder="Search files..."
+                        placeholder="Search filename..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="w-full pl-10 pr-4 py-2 bg-dark-600 border border-dark-500 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-primary-500"
@@ -246,7 +163,7 @@ const FileManager = () => {
                         onChange={(e) => setFilterStatus(e.target.value)}
                         className="bg-dark-600 border border-dark-500 rounded-lg text-white px-3 py-2 focus:outline-none focus:border-primary-500"
                     >
-                        <option value="all">All Files</option>
+                        <option value="all">All Status</option>
                         <option value="clean">Clean</option>
                         <option value="infected">Infected</option>
                         <option value="unscanned">Unscanned</option>
@@ -270,8 +187,7 @@ const FileManager = () => {
                     />
                 </div>
             </div>
-
-            {/* File List */}
+            {/* Table */}
             <div className="card">
                 <div className="overflow-x-auto">
                     <table className="w-full">
@@ -279,6 +195,7 @@ const FileManager = () => {
                             <tr className="border-b border-dark-600">
                                 <th className="text-left py-3 px-4 text-gray-400 font-medium">File</th>
                                 <th className="text-left py-3 px-4 text-gray-400 font-medium">Size</th>
+                                <th className="text-left py-3 px-4 text-gray-400 font-medium">Mime Type</th>
                                 <th className="text-left py-3 px-4 text-gray-400 font-medium">Status</th>
                                 <th className="text-left py-3 px-4 text-gray-400 font-medium">Uploaded</th>
                                 <th className="text-left py-3 px-4 text-gray-400 font-medium">Threat</th>
@@ -301,6 +218,7 @@ const FileManager = () => {
                                         </div>
                                     </td>
                                     <td className="py-4 px-4 text-gray-400">{formatFileSize(file.file_size)}</td>
+                                    <td className="py-4 px-4 text-gray-400">{file.mime_type}</td>
                                     <td className="py-4 px-4">
                                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadge(file.scan_status)}`}>
                                             {file.scan_status ? file.scan_status.toUpperCase() : 'UNSCANNED'}
@@ -345,28 +263,8 @@ const FileManager = () => {
                 </div>
                 {totalPages > 1 && <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={(page) => fetchFiles(page)} />}
             </div>
-
-            {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="card text-center">
-                    <h3 className="text-2xl font-bold text-white">{stats.total}</h3>
-                    <p className="text-gray-400">Total Files</p>
-                </div>
-                <div className="card text-center">
-                    <h3 className="text-2xl font-bold text-green-400">{stats.clean}</h3>
-                    <p className="text-gray-400">Clean</p>
-                </div>
-                <div className="card text-center">
-                    <h3 className="text-2xl font-bold text-red-400">{stats.infected}</h3>
-                    <p className="text-gray-400">Infected</p>
-                </div>
-                <div className="card text-center">
-                    <h3 className="text-2xl font-bold text-gray-400">{stats.unscanned}</h3>
-                    <p className="text-gray-400">Unscanned</p>
-                </div>
-            </div>
         </div>
     );
 };
 
-export default FileManager;
+export default Reports; 
