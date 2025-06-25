@@ -1,18 +1,15 @@
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 
-// TODO: Add your own Firebase configuration below
 const firebaseConfig = {
-  apiKey: "AIzaSyAeb7axXzvV1nIXx1QlIe3SL9Rl35gCdJA",
-  authDomain: "virus-scanner-app.firebaseapp.com",
-  projectId: "virus-scanner-app",
-  storageBucket: "virus-scanner-app.firebasestorage.app",
-  messagingSenderId: "688814595878",
-  appId: "1:688814595878:web:92dc00e601c1be2571ebe7"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
-
 export const auth = getAuth(app);
-export default app; 
+export default app;

@@ -4,7 +4,7 @@ uploads/
 firebase-service-account-key.json
 
 # environment variables
-.env
+**/.env
 
 # logs
 logs
@@ -26,4 +26,4 @@ pnpm-debug.log*
 
 # server build files if you build later
 dist/
-.env
+
