@@ -116,7 +116,6 @@ const FileManager = () => {
             });
             setFiles(response.data.files || []);
             setTotalPages(Math.ceil(response.data.total / recordsPerPage));
-            setCurrentPage(page);
         } catch (error) {
             console.error('Failed to fetch files:', error);
         } finally {
@@ -124,12 +123,12 @@ const FileManager = () => {
         }
     }, [currentUser, debouncedSearchTerm, filterStatus, filterMime, filterDate]);
 
-    // When search/filter changes, reset to page 1 and fetch
+    // When search/filter changes, reset to page 1
     useEffect(() => {
         setCurrentPage(1);
-        fetchFiles(1);
-    }, [fetchFiles, debouncedSearchTerm, filterStatus, filterMime, filterDate]);
+    }, [debouncedSearchTerm, filterStatus, filterMime, filterDate]);
 
+    // Fetch files when currentPage changes
     useEffect(() => {
         fetchFiles(currentPage);
     }, [fetchFiles, currentPage]);
