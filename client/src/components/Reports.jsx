@@ -1,7 +1,18 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { FileText, Search, Filter, ChevronLeft, ChevronRight, File, AlertTriangle, CheckCircle, Download, Trash2 } from 'lucide-react';
+import { FileText, Search, Filter, ChevronLeft, ChevronRight, File, AlertTriangle, CheckCircle } from 'lucide-react';
 import axios from 'axios';
 import { motion } from 'framer-motion';
+import { useAuth } from '../contexts/AuthContext';
+
+const getAuthHeaders = async (currentUser) => {
+    if (!currentUser) return {};
+    const token = await currentUser.getIdToken();
+    return {
+        headers: {
+            Authorization: `Bearer ${token}`
+        }
+    };
+};
 
 const Pagination = ({ currentPage, totalPages, onPageChange }) => {
     const pageNumbers = [];
@@ -26,6 +37,7 @@ const Pagination = ({ currentPage, totalPages, onPageChange }) => {
 };
 
 const Reports = () => {
+    const { currentUser } = useAuth();
     const [files, setFiles] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -45,9 +57,12 @@ const Reports = () => {
     }, [searchTerm]);
 
     const fetchFiles = useCallback(async (page) => {
+        if (!currentUser) return;
         setLoading(true);
         try {
+            const authHeaders = await getAuthHeaders(currentUser);
             const response = await axios.get('/api/files', {
+                ...authHeaders,
                 params: {
                     page,
                     limit: recordsPerPage,
@@ -65,7 +80,7 @@ const Reports = () => {
         } finally {
             setLoading(false);
         }
-    }, [debouncedSearchTerm, filterStatus, filterMime, filterDate]);
+    }, [currentUser, debouncedSearchTerm, filterStatus, filterMime, filterDate]);
 
     useEffect(() => {
         fetchFiles(currentPage);
@@ -110,30 +125,6 @@ const Reports = () => {
             hour: '2-digit',
             minute: '2-digit',
         });
-    };
-    const handleDownload = async (fileId, filename) => {
-        try {
-            const response = await axios.get(`/api/download/${fileId}`, {
-                responseType: 'blob',
-            });
-            const url = window.URL.createObjectURL(new Blob([response.data]));
-            const link = document.createElement('a');
-            link.href = url;
-            link.setAttribute('download', filename);
-            document.body.appendChild(link);
-            link.click();
-            link.parentNode.removeChild(link);
-        } catch (error) {
-            console.error('Failed to download file:', error);
-        }
-    };
-    const handleDelete = async (fileId) => {
-        try {
-            await axios.delete(`/api/delete/${fileId}`);
-            fetchFiles(currentPage);
-        } catch (error) {
-            console.error('Failed to delete file:', error);
-        }
     };
     return (
         <div className="space-y-6">
@@ -198,8 +189,8 @@ const Reports = () => {
                                 <th className="text-left py-3 px-4 text-gray-400 font-medium">Mime Type</th>
                                 <th className="text-left py-3 px-4 text-gray-400 font-medium">Status</th>
                                 <th className="text-left py-3 px-4 text-gray-400 font-medium">Uploaded</th>
+                                <th className="text-left py-3 px-4 text-gray-400 font-medium">ClamAV Version</th>
                                 <th className="text-left py-3 px-4 text-gray-400 font-medium">Threat</th>
-                                <th className="text-right py-3 px-4 text-gray-400 font-medium">Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -225,30 +216,9 @@ const Reports = () => {
                                         </span>
                                     </td>
                                     <td className="py-4 px-4 text-gray-400">{formatDate(file.uploaded_at)}</td>
+                                    <td className="py-4 px-4 text-gray-400">{file.clamav_version || '-'}</td>
                                     <td className="py-4 px-4">
                                         {file.virus_name ? <span className="text-red-400 font-medium">{file.virus_name}</span> : <span className="text-gray-500">-</span>}
-                                    </td>
-                                    <td className="py-4 px-4">
-                                        <div className="flex items-center justify-end space-x-2">
-                                            <motion.button
-                                                whileHover={{ scale: 1.1 }}
-                                                whileTap={{ scale: 0.9 }}
-                                                className="p-2 text-gray-400 hover:text-blue-400 transition-colors"
-                                                title="Download"
-                                                onClick={() => handleDownload(file.id, file.filename)}
-                                            >
-                                                <Download className="w-4 h-4" />
-                                            </motion.button>
-                                            <motion.button
-                                                whileHover={{ scale: 1.1 }}
-                                                whileTap={{ scale: 0.9 }}
-                                                className="p-2 text-gray-400 hover:text-red-400 transition-colors"
-                                                title="Delete"
-                                                onClick={() => handleDelete(file.id)}
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </motion.button>
-                                        </div>
                                     </td>
                                 </motion.tr>
                             ))}

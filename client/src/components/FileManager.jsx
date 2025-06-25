@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import { File, Search, Filter, Download, Trash2, AlertTriangle, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react'
 import axios from 'axios'
+import { useAuth } from '../contexts/AuthContext';
 
 const Pagination = ({ currentPage, totalPages, onPageChange }) => {
     const pageNumbers = [];
@@ -47,7 +48,18 @@ const Pagination = ({ currentPage, totalPages, onPageChange }) => {
     );
 };
 
+const getAuthHeaders = async (currentUser) => {
+    if (!currentUser) return {};
+    const token = await currentUser.getIdToken();
+    return {
+        headers: {
+            Authorization: `Bearer ${token}`
+        }
+    };
+};
+
 const FileManager = () => {
+    const { currentUser } = useAuth();
     const [files, setFiles] = useState([])
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState('')
@@ -62,8 +74,9 @@ const FileManager = () => {
 
     const fetchStats = useCallback(async () => {
         try {
-            const statsResponse = await axios.get('/api/stats');
-            const totalFilesResponse = await axios.get('/api/files?limit=1');
+            const authHeaders = await getAuthHeaders(currentUser);
+            const statsResponse = await axios.get('/api/stats', authHeaders);
+            const totalFilesResponse = await axios.get('/api/files?limit=1', authHeaders);
             const totalFiles = totalFilesResponse.data.total || 0;
             const scanned = statsResponse.data.total || 0;
 
@@ -76,7 +89,7 @@ const FileManager = () => {
         } catch (error) {
             console.error('Failed to fetch stats:', error);
         }
-    }, []);
+    }, [currentUser]);
 
     // Debounce searchTerm
     useEffect(() => {
@@ -89,7 +102,9 @@ const FileManager = () => {
     const fetchFiles = useCallback(async (page) => {
         setLoading(true);
         try {
+            const authHeaders = await getAuthHeaders(currentUser);
             const response = await axios.get('/api/files', {
+                ...authHeaders,
                 params: {
                     page,
                     limit: recordsPerPage,
@@ -107,16 +122,17 @@ const FileManager = () => {
         } finally {
             setLoading(false);
         }
-    }, [debouncedSearchTerm, filterStatus, filterMime, filterDate]);
+    }, [currentUser, debouncedSearchTerm, filterStatus, filterMime, filterDate]);
+
+    // When search/filter changes, reset to page 1 and fetch
+    useEffect(() => {
+        setCurrentPage(1);
+        fetchFiles(1);
+    }, [fetchFiles, debouncedSearchTerm, filterStatus, filterMime, filterDate]);
 
     useEffect(() => {
         fetchFiles(currentPage);
     }, [fetchFiles, currentPage]);
-
-    // When search/filter changes, reset to page 1
-    useEffect(() => {
-        setCurrentPage(1);
-    }, [debouncedSearchTerm, filterStatus, filterMime, filterDate]);
 
     useEffect(() => {
         fetchStats();
@@ -124,7 +140,9 @@ const FileManager = () => {
 
     const handleDownload = async (fileId, filename) => {
         try {
+            const authHeaders = await getAuthHeaders(currentUser);
             const response = await axios.get(`/api/download/${fileId}`, {
+                ...authHeaders,
                 responseType: 'blob',
             });
             const url = window.URL.createObjectURL(new Blob([response.data]));
@@ -141,7 +159,8 @@ const FileManager = () => {
 
     const handleDelete = async (fileId) => {
         try {
-            await axios.delete(`/api/delete/${fileId}`);
+            const authHeaders = await getAuthHeaders(currentUser);
+            await axios.delete(`/api/delete/${fileId}`, authHeaders);
             fetchFiles(currentPage);
             fetchStats();
         } catch (error) {
@@ -154,7 +173,7 @@ const FileManager = () => {
         for (const file of infectedFiles) {
             await handleDelete(file.id);
         }
-        // After all deletions, refresh
+        
         fetchFiles(currentPage);
         fetchStats();
     };
@@ -312,15 +331,6 @@ const FileManager = () => {
                                     </td>
                                     <td className="py-4 px-4">
                                         <div className="flex items-center justify-end space-x-2">
-                                            <motion.button
-                                                whileHover={{ scale: 1.1 }}
-                                                whileTap={{ scale: 0.9 }}
-                                                className="p-2 text-gray-400 hover:text-blue-400 transition-colors"
-                                                title="Download"
-                                                onClick={() => handleDownload(file.id, file.filename)}
-                                            >
-                                                <Download className="w-4 h-4" />
-                                            </motion.button>
                                             <motion.button
                                                 whileHover={{ scale: 1.1 }}
                                                 whileTap={{ scale: 0.9 }}

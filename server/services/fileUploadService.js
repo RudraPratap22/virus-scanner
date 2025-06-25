@@ -5,19 +5,31 @@ import path from 'path';
 import fs from 'fs';
 import { File } from '../entities/File.js';
 import { v4 as uuidv4 } from 'uuid';
+import logger from '../utils/logger.js';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(path.dirname(__filename));
+const UPLOAD_DIR = path.join(__dirname, 'uploads');
 
 export const uploadFileService = (req) => {
   return new Promise(async (resolve, reject) => {
     try {
       if (!req.file) {
+        logger.warn('Upload attempt without a file.');
         return reject({ status: 400, error: 'No file uploaded' });
       }
+      if (!req.user) {
+        logger.warn('Upload attempt without authenticated user.');
+        return reject({ status: 401, error: 'User not authenticated' });
+      }
+      
       const { filename, size, path: filePath, mimetype } = req.file;
+      const userId = req.user.uid;
 
-      // Insert file record - use default user_id of 1 if no user is authenticated
-      const userId = req.user ? req.user.id : uuidv4();
+      // Insert file record
       const newFile = await pool.query(
-        "INSERT INTO files (filename, aws3_key, file_size, user_id, mime_type) VALUES ($1, $2, $3, $4, $5) RETURNING *",
+        "INSERT INTO files (filename, aws3_key, file_size, user_id, mime_type, uploaded_at) VALUES ($1, $2, $3, $4, $5, NOW()) RETURNING *",
         [filename, 'local', size, userId, mimetype]
       );
       const file_id = newFile.rows[0].id;
@@ -38,7 +50,7 @@ export const uploadFileService = (req) => {
           scan_log = 'ClamAV not available - mock scan performed (file marked as clean)';
           scan_version = 'Mock Scanner v1.0';
           
-          console.warn('ClamAV not available, using mock scan. Install ClamAV in WSL for real virus scanning.');
+          logger.warn('ClamAV not available, using mock scan. Install ClamAV in WSL for real virus scanning.');
           
           // Save scan result
           await pool.query(
@@ -50,10 +62,10 @@ export const uploadFileService = (req) => {
           try {
             if (filePath && fs.existsSync(filePath)) {
               await fs.promises.unlink(filePath);
-              console.log(`[File Cleanup] Deleted mock-scanned file: ${filePath}`);
+              logger.info(`[File Cleanup] Deleted mock-scanned file: ${filePath}`);
             }
           } catch (deleteErr) {
-            console.error('[File Cleanup] Error deleting file after mock scan:', deleteErr);
+            logger.error('[File Cleanup] Error deleting file after mock scan:', deleteErr);
           }
 
           const scanResult = { status, virus_name, scan_log, scan_version };
@@ -96,10 +108,10 @@ export const uploadFileService = (req) => {
             try {
               if (filePath && fs.existsSync(filePath)) {
                 await fs.promises.unlink(filePath);
-                console.log(`[File Cleanup] Deleted clam-scanned file: ${filePath}`);
+                logger.info(`[File Cleanup] Deleted clam-scanned file: ${filePath}`);
               }
             } catch (deleteErr) {
-              console.error('[File Cleanup] Error deleting file after clamscan:', deleteErr);
+              logger.error('[File Cleanup] Error deleting file after clamscan:', deleteErr);
             }
 
             const scanResult = { status, virus_name, scan_log, scan_version };
@@ -111,7 +123,7 @@ export const uploadFileService = (req) => {
         }
       });
     } catch (err) {
-      console.error('Upload service error:', err);
+      logger.error('Upload service error:', err);
       reject({ status: 500, error: err.message });
     }
   });

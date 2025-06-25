@@ -6,19 +6,21 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(path.dirname(__filename));
 
-export const getAllFilesService = async (query) => {
-  const { userId, fileId, filename, mimeType, status, limit = 10, page = 1, date } = query;
-
-  let sql = `SELECT f.*, s.status AS scan_status, s.virus_name, s.scan_log, s.scan_version FROM files f LEFT JOIN scans s ON f.id = s.file_id`;
-  let countSql = `SELECT COUNT(*) FROM files f LEFT JOIN scans s ON f.id = s.file_id`;
-  const conditions = [];
-  const params = [];
-  let idx = 1;
-
-  if (userId) {
-    conditions.push(`f.user_id = $${idx++}`);
-    params.push(userId);
+export const getAllFilesService = async (query, user) => {
+  if (!user || !user.uid) {
+    throw new Error('User not authenticated');
   }
+  
+  const { fileId, filename, mimeType, status, limit = 10, page = 1, date } = query;
+  const userId = user.uid;
+
+  let sql = `SELECT f.*, s.status AS scan_status, s.virus_name, s.scan_log, s.scan_version as clamav_version FROM files f LEFT JOIN scans s ON f.id = s.file_id`;
+  let countSql = `SELECT COUNT(*) FROM files f LEFT JOIN scans s ON f.id = s.file_id`;
+  
+  const conditions = [`f.user_id = $1`];
+  const params = [userId];
+  let idx = 2;
+
   if (fileId) {
     conditions.push(`f.id = $${idx++}`);
     params.push(fileId);
@@ -59,22 +61,25 @@ export const getAllFilesService = async (query) => {
 
   return {
     files: allFiles.rows,
-    total: parseInt(totalCount.rows[0].count)
+    total: parseInt(totalCount.rows[0].count) || 0
   };
 };
 
-export const getFileById = async (fileId) => {
-    const fileResult = await pool.query('SELECT * FROM files WHERE id = $1', [fileId]);
+export const getFileById = async (fileId, user) => {
+    if (!user || !user.uid) {
+      throw new Error('User not authenticated');
+    }
+    const fileResult = await pool.query('SELECT * FROM files WHERE id = $1 AND user_id = $2', [fileId, user.uid]);
     if (fileResult.rows.length === 0) {
-        throw new Error('File not found');
+        throw new Error('File not found or access denied');
     }
     const file = fileResult.rows[0];
     const filePath = path.join(__dirname, '..', 'uploads', file.filename);
     return { file, filePath };
 };
 
-export const deleteFileById = async (fileId) => {
-    const { file, filePath } = await getFileById(fileId);
+export const deleteFileById = async (fileId, user) => {
+    const { file, filePath } = await getFileById(fileId, user);
     try {
         console.log(`[deleteFileById] Attempting to delete file from disk: ${filePath}`);
         await fs.promises.unlink(filePath);
@@ -87,32 +92,61 @@ export const deleteFileById = async (fileId) => {
             console.error(`[deleteFileById] Error deleting file from disk: ${filePath}`, err);
         }
     }
-    await pool.query('DELETE FROM files WHERE id = $1', [fileId]);
+    await pool.query('DELETE FROM files WHERE id = $1 AND user_id = $2', [fileId, user.uid]);
     // Also delete associated scans
     await pool.query('DELETE FROM scans WHERE file_id = $1', [fileId]);
 };
 
-export const getScanStatistics = async () => {
-    const statsResult = await pool.query(`
-        SELECT
-            COUNT(*) AS total,
-            SUM(CASE WHEN status = 'clean' THEN 1 ELSE 0 END) AS clean,
-            SUM(CASE WHEN status = 'infected' THEN 1 ELSE 0 END) AS infected
-        FROM scans
-    `);
-    const stats = statsResult.rows[0];
-    return {
-        total: parseInt(stats.total, 10) || 0,
-        clean: parseInt(stats.clean, 10) || 0,
-        infected: parseInt(stats.infected, 10) || 0,
-    };
-};
+// export const getScanStatistics = async (user) => {
+//     if (!user || !user.uid) {
+//       throw new Error('User not authenticated');
+//     }
+//     const statsResult = await pool.query(`
+//         SELECT
+//             COUNT(f.id) AS total,
+//             SUM(CASE WHEN s.status = 'clean' THEN 1 ELSE 0 END) AS clean,
+//             SUM(CASE WHEN s.status = 'infected' THEN 1 ELSE 0 END) AS infected
+//         FROM files f
+//         LEFT JOIN scans s ON f.id = s.file_id
+//         WHERE f.user_id = $1
+//     `, [user.uid]);
+//     const stats = statsResult.rows[0];
+//     return {
+//         total: parseInt(stats.total, 10) || 0,
+//         clean: parseInt(stats.clean, 10) || 0,
+//         infected: parseInt(stats.infected, 10) || 0,
+//     };
+// };
 
-export const getInfectedFiles = async () => {
+export const getInfectedFiles = async (user) => {
+    if (!user || !user.uid) {
+      throw new Error('User not authenticated');
+    }
     const result = await pool.query(`
         SELECT f.id FROM files f
         LEFT JOIN scans s ON f.id = s.file_id
-        WHERE s.status = 'infected'
-    `);
+        WHERE s.status = 'infected' AND f.user_id = $1
+    `, [user.uid]);
     return result.rows;
+};
+
+export const getScanStatisticsService = async (user) => {
+  if (!user || !user.uid) {
+    throw new Error('User not authenticated');
+  }
+  const statsResult = await pool.query(`
+    SELECT
+      COUNT(f.id) AS total,
+      SUM(CASE WHEN s.status = 'clean' THEN 1 ELSE 0 END) AS clean,
+      SUM(CASE WHEN s.status = 'infected' THEN 1 ELSE 0 END) AS infected
+    FROM files f
+    LEFT JOIN scans s ON f.id = s.file_id
+    WHERE f.user_id = $1
+  `, [user.uid]);
+  const stats = statsResult.rows[0];
+  return {
+    total: parseInt(stats.total, 10) || 0,
+    clean: parseInt(stats.clean, 10) || 0,
+    infected: parseInt(stats.infected, 10) || 0,
+  };
 };

@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Upload, File, Shield, AlertTriangle, CheckCircle, X, Loader, Info } from 'lucide-react'
 import axios from 'axios'
+import { useAuth } from '../contexts/AuthContext'
 
 const ScanProgressBar = ({ status }) => {
   if (status !== 'uploading') return null;
@@ -18,7 +19,18 @@ const ScanProgressBar = ({ status }) => {
   );
 };
 
+const getAuthHeaders = async (currentUser) => {
+  if (!currentUser) return {};
+  const token = await currentUser.getIdToken();
+  return {
+    headers: {
+      Authorization: `Bearer ${token}`
+    }
+  };
+};
+
 const Scan = () => {
+  const { currentUser } = useAuth();
   const [files, setFiles] = useState([])
   const [dragActive, setDragActive] = useState(false)
   const fileInputRef = useRef(null)
@@ -26,7 +38,8 @@ const Scan = () => {
 
   const fetchStats = async () => {
     try {
-      const response = await axios.get('/api/stats');
+      const authHeaders = await getAuthHeaders(currentUser);
+      const response = await axios.get('/api/stats', authHeaders);
       setStats(response.data);
     } catch (error) {
       console.error('Failed to fetch stats:', error);
@@ -34,8 +47,10 @@ const Scan = () => {
   };
 
   useEffect(() => {
-    fetchStats();
-  }, []);
+    if (currentUser) {
+      fetchStats();
+    }
+  }, [currentUser]);
 
   const handleDrag = (e) => {
     e.preventDefault()
@@ -65,6 +80,23 @@ const Scan = () => {
   }
 
   const handleFiles = async (fileList) => {
+    // Block .exe files before upload
+    const blocked = Array.from(fileList).filter(file => file.name.toLowerCase().endsWith('.exe'));
+    if (blocked.length > 0) {
+      setFiles([
+        ...Array.from(fileList).map(file => ({
+          id: Date.now() + Math.random(),
+          file,
+          name: file.name,
+          size: file.size,
+          status: file.name.toLowerCase().endsWith('.exe') ? 'error' : 'pending',
+          scanResult: null,
+          errorMsg: file.name.toLowerCase().endsWith('.exe') ? 'EXE files are not allowed.' : undefined
+        }))
+      ]);
+      return;
+    }
+
     const newFiles = Array.from(fileList).map(file => ({
       id: Date.now() + Math.random(),
       file,
@@ -92,9 +124,14 @@ const Scan = () => {
       const formData = new FormData()
       formData.append('file', fileObj.file)
 
+      const authHeaders = await getAuthHeaders(currentUser);
       const response = await axios.post('/api/upload-file', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
+        ...authHeaders,
+        onUploadProgress: (progressEvent) => {
+          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+          setFiles(prev => prev.map(f => 
+            f.id === fileObj.id ? { ...f, uploadProgress: percentCompleted } : f
+          ))
         },
       })
 
@@ -105,19 +142,27 @@ const Scan = () => {
           ...f, 
           id: scanResult.id, // Use the permanent ID from the server
           status: scanResult.status === 'infected' ? 'infected' : 'clean',
-          scanResult: scanResult
+          scanResult: scanResult,
+          errorMsg: undefined
         } : f
       ))
     } catch (error) {
-      console.error('Upload failed:', error)
+      console.log('Upload error:', error, error.response && error.response.data, error.response && error.response.status);
+      let errorMsg = 'Upload failed';
+      if (error.response && error.response.data && error.response.data.error) {
+        errorMsg = error.response.data.error;
+      }
       setFiles(prev => prev.map(f => 
-        f.id === fileObj.id ? { ...f, status: 'error' } : f
+        f.id === fileObj.id ? { ...f, status: 'error', errorMsg } : f
       ))
     }
   }
 
   const removeFile = (id) => {
     setFiles(prev => prev.filter(f => f.id !== id));
+    setFiles(prev => prev.map(f => 
+      f.id === id ? { ...f, status: 'pending', scanResult: null } : f
+    ));
   }
 
   const getStatusIcon = (status) => {
@@ -296,6 +341,10 @@ const Scan = () => {
                         <p><strong>Scan Log:</strong> {file.scanResult.scan_log.substring(0, 70)}...</p>
                       </div>
                     </motion.div>
+                  )}
+
+                  {file.status === 'error' && file.errorMsg && (
+                    <span className="text-red-400 font-semibold mt-2">{file.errorMsg}</span>
                   )}
                 </motion.div>
               ))}

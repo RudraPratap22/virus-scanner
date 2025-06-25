@@ -1,45 +1,55 @@
-import React, { useState } from 'react'
-import { motion } from 'framer-motion'
-import Sidebar from './components/Sidebar'
-import Dashboard from './components/Dashboard'
-import Scan from './components/Scan'
-import FileManager from './components/FileManager'
-import Reports from './components/Reports'
+import React from 'react';
+import Sidebar from './components/Sidebar';
+import Dashboard from './components/Dashboard';
+import Scan from './components/Scan';
+import Reports from './components/Reports';
+import FileManager from './components/FileManager';
+import Login from './components/Login';
+import PrivateRoute from './components/PrivateRoute';
+import { AuthProvider } from './contexts/AuthContext';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 
-function App() {
-  const [activeTab, setActiveTab] = useState('dashboard')
+function MainLayout() {
+    const location = useLocation();
+    const [active, setActive] = React.useState(location.pathname);
 
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'dashboard':
-        return <Dashboard />
-      case 'scan':
-        return <Scan />
-      case 'files':
-        return <FileManager />
-      case 'reports':
-        return <Reports />
-      default:
-        return <Dashboard />
-    }
-  }
+    React.useEffect(() => {
+        setActive(location.pathname);
+    }, [location]);
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-dark-800 to-dark-900 flex">
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
-      <main className="flex-1 p-6">
-        <motion.div
-          key={activeTab}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-          className="h-full"
-        >
-          {renderContent()}
-        </motion.div>
-      </main>
-    </div>
-  )
+    return (
+        <div className="flex bg-dark-800 text-white min-h-screen">
+            <Sidebar active={active} setActive={setActive} />
+            <main className="flex-1 p-6 md:p-8 lg:p-10">
+                <Routes>
+                    <Route path="/" element={<Dashboard />} />
+                    <Route path="/scan" element={<Scan />} />
+                    <Route path="/reports" element={<Reports />} />
+                    <Route path="/files" element={<FileManager />} />
+                </Routes>
+            </main>
+        </div>
+    );
 }
 
-export default App
+function App() {
+    return (
+        <Router>
+            <AuthProvider>
+                <Routes>
+                    <Route path="/login" element={<Login />} />
+                    <Route
+                        path="/*"
+                        element={
+                            <PrivateRoute>
+                                <MainLayout />
+                            </PrivateRoute>
+                        }
+                    />
+                </Routes>
+            </AuthProvider>
+        </Router>
+    );
+}
+
+export default App;

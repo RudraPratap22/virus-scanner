@@ -6,16 +6,29 @@ import axios from 'axios';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import Papa from 'papaparse';
+import { useAuth } from '../contexts/AuthContext';
+
+const getAuthHeaders = async (currentUser) => {
+    if (!currentUser) return {};
+    const token = await currentUser.getIdToken();
+    return {
+        headers: {
+            Authorization: `Bearer ${token}`
+        }
+    };
+};
 
 const Dashboard = () => {
+    const { currentUser } = useAuth();
     const [stats, setStats] = useState({ total: 0, infected: 0 });
     const [lastFile, setLastFile] = useState(null);
     const [scanProgress, setScanProgress] = useState(72); // Mock progress
 
     const fetchDashboardData = async () => {
         try {
-            const statsPromise = axios.get('/api/stats');
-            const filesPromise = axios.get('/api/files?limit=1');
+            const authHeaders = await getAuthHeaders(currentUser);
+            const statsPromise = axios.get('/api/stats', authHeaders);
+            const filesPromise = axios.get('/api/files?limit=1', authHeaders);
             
             const [statsResponse, filesResponse] = await Promise.all([statsPromise, filesPromise]);
             
@@ -30,8 +43,12 @@ const Dashboard = () => {
     };
 
     useEffect(() => {
-        fetchDashboardData();
-    }, []);
+        if (currentUser) {
+            fetchDashboardData();
+        }
+    }, [currentUser]);
+
+    
 
     const formatFileSize = (bytes) => {
         if (!bytes || bytes === 0) return '0 Bytes';
@@ -43,7 +60,8 @@ const Dashboard = () => {
 
     const handleDeleteInfected = async () => {
         try {
-            await axios.delete('/api/delete-infected');
+            const authHeaders = await getAuthHeaders(currentUser);
+            await axios.delete('/api/delete-infected', authHeaders);
             fetchDashboardData();
         } catch (error) {
             alert('Failed to delete infected files.');
@@ -52,7 +70,8 @@ const Dashboard = () => {
 
     const handleExportReport = async (format) => {
         try {
-            const { data } = await axios.get('/api/export-report');
+            const authHeaders = await getAuthHeaders(currentUser);
+            const { data } = await axios.get('/api/export-report', authHeaders);
             const files = data.files || [];
 
             if (format === 'pdf') {
@@ -61,7 +80,7 @@ const Dashboard = () => {
                 // Summary section
                 const totalFiles = files.length;
                 const infectedFiles = files.filter(f => f.scan_status === 'infected').length;
-                const scanVersions = [...new Set(files.map(f => f.scan_version).filter(Boolean))].join(', ');
+                const scanVersions = [...new Set(files.map(f => f.clamav_version).filter(Boolean))].join(', ');
                 const dates = files.map(f => f.uploaded_at).filter(Boolean).sort();
                 const dateRange = dates.length ? `${dates[0].slice(0, 10)} to ${dates[dates.length - 1].slice(0, 10)}` : 'N/A';
                 doc.setFontSize(16);
@@ -82,7 +101,7 @@ const Dashboard = () => {
                         f.uploaded_at ? f.uploaded_at.replace('T', ' ').slice(0, 19) : '',
                         f.scan_status ? (f.scan_status === 'infected' ? 'Infected' : 'Clean') : 'Unscanned',
                         f.virus_name || 'N/A',
-                        f.scan_version ? f.scan_version.split('/')[0] : 'N/A',
+                        f.clamav_version ? f.clamav_version.split('/')[0] : 'N/A',
                         f.mime_type || 'N/A',
                     ]),
                     styles: { fontSize: 8 },
@@ -109,7 +128,7 @@ const Dashboard = () => {
                     scan_date: f.uploaded_at,
                     scan_status: f.scan_status,
                     virus_name: f.virus_name,
-                    scanner_version: f.scan_version,
+                    scanner_version: f.clamav_version,
                     scan_log_summary: f.scan_log ? f.scan_log.slice(0, 40) : '',
                     scan_id: f.id,
                     file_path: f.aws3_key,

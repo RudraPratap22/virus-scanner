@@ -1,4 +1,4 @@
-import { getScanStatistics } from '../services/fileQueryService.js';
+import { getScanStatisticsService } from '../services/fileQueryService.js';
 import pool from '../config/db.js';
 import { exec } from 'child_process';
 

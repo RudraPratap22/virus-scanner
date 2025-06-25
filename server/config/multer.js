@@ -1,6 +1,7 @@
 import multer from 'multer';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import logger from '../utils/logger.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -19,9 +20,11 @@ const fileFilter = (req, file, cb) => {
   const disallowedExts = ['.exe'];
   const ext = path.extname(file.originalname).toLowerCase();
   if (disallowedExts.includes(ext)) {
+    logger.warn(`Blocked upload: ${file.originalname} (disallowed extension)`);
     return cb(new Error('Unsupported file type'));
   }
   if (file.size === 0) {
+    logger.warn(`Blocked upload: ${file.originalname} (empty file)`);
     return cb(new Error('File is empty'));
   }
   cb(null, true);
