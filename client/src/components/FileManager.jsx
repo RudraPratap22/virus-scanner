@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
-import { File, Search, Filter, Download, Trash2, AlertTriangle, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react'
+import { File, Search, Filter, Download, Trash2, AlertTriangle, CheckCircle, ChevronLeft, ChevronRight, UploadCloud, Loader } from 'lucide-react'
 import axios from 'axios'
 import { useAuth } from '../contexts/AuthContext';
 

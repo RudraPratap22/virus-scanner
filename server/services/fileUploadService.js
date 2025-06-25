@@ -1,4 +1,4 @@
-// server/services/fileService.js
+
 import pool from '../config/db.js';
 import { exec } from 'child_process';
 import path from 'path';
