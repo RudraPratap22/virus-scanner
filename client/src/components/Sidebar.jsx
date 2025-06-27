@@ -28,7 +28,7 @@ const Sidebar = ({ active, setActive }) => {
             <div>
                 <div className="flex items-center space-x-3 mb-10">
                     <Shield className="w-8 h-8 text-primary-500" />
-                    <span className="text-xl font-bold text-white">VirusScanner</span>
+                    <span className="text-xl font-bold text-white">ClamSecure</span>
                 </div>
                 <nav>
                     <ul>
@@ -54,7 +54,11 @@ const Sidebar = ({ active, setActive }) => {
             <div className="border-t border-dark-700 pt-4">
                 {currentUser && (
                     <div className="flex items-center space-x-3 mb-4">
-                        <img src={currentUser.photoURL} alt="User" className="w-10 h-10 rounded-full" />
+                        <img
+                            src={currentUser?.photoURL || '/default-avatar.png'}
+                            alt="Profile"
+                            className="w-10 h-10 rounded-full"
+                        />
                         <div>
                             <p className="text-white font-semibold">{currentUser.displayName}</p>
                             <p className="text-gray-400 text-xs">{currentUser.email}</p>

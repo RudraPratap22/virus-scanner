@@ -218,7 +218,7 @@ const Scan = () => {
       <div className="flex items-center space-x-3">
         <Shield className="w-8 h-8 text-primary-500" />
         <div>
-          <h1 className="text-2xl font-bold text-white">Antivirus Scanner</h1>
+          <h1 className="text-2xl font-bold text-white">ClamSecure</h1>
           <p className="text-gray-400">Upload files to scan for viruses and malware</p>
         </div>
       </div>
