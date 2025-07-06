@@ -128,7 +128,7 @@ npm start
 ## 👤 Author
 
 **Rudra Pratap Singh**  
-[LinkedIn](https://linkedin.com/in/rudra-pratap-singh) • [GitHub](https://github.com/rudraSingh98)
+[LinkedIn](https://www.linkedin.com/in/rudra-pratap-singh-19bbbb303/) • [GitHub](https://github.com/RudraPratap22)
 
 ---
 
