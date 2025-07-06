@@ -58,6 +58,7 @@ const Sidebar = ({ active, setActive }) => {
                             src={currentUser?.photoURL || '/default-avatar.png'}
                             alt="Profile"
                             className="w-10 h-10 rounded-full"
+                            onError={(e) => { e.target.onerror = null; e.target.src = '/default-avatar.png'; }}
                         />
                         <div>
                             <p className="text-white font-semibold">{currentUser.displayName}</p>
