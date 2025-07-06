@@ -49,13 +49,13 @@ ClamSecure is a secure file virus scanning web application that enables users to
 
 ```
 clamsecure/
-├── backend/
+├── server/
 │   ├── controllers/
 │   ├── routes/
 │   ├── services/
 │   ├── config/
 │   └── uploads/
-├── frontend/
+├── client/
 │   ├── src/
 │   │   ├── components/
 │   │   ├── pages/
